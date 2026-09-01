@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Ultimate Operating Systems Storage Subsystem & Hardware Architecture Lab - Featuring Classical Schedulers, Linux Kernel Schedulers (Deadline, CFQ, NOOP), SSD Flash Architecture, 3D Multi-Platter CHS/LBA, and In-Browser Code Sandbox." />
+  <title>Disk Scheduling Simulator & OS Storage Architecture Lab</title>
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="project.css" />
+</head>
+
+<body>
+  <div class="app-wrapper">
+    <!-- Top Navigation / Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+            <line x1="12" y1="2" x2="12" y2="5"></line>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+            <line x1="2" y1="12" x2="5" y2="12"></line>
+            <line x1="19" y1="12" x2="22" y2="12"></line>
+          </svg>
+        </div>
+        <div>
+          <h1>Disk Scheduling Simulator</h1>
+          <p class="subtitle">OS Storage Architecture Lab & Hardware Physics Suite</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Device Mode Toggle -->
+        <div class="device-mode-toggle">
+          <button id="deviceHddBtn" class="device-pill active" title="Mechanical Hard Disk Drive (Magnetic Platters)">💽 HDD Mode</button>
+          <button id="deviceSsdBtn" class="device-pill" title="NAND Flash Solid State Drive (Zero Seek Penalty)">⚡ SSD Mode</button>
+        </div>
+
+        <!-- Preset Dropdown -->
+        <div class="quick-preset-group">
+          <label for="presetSelect" class="sr-only">Preset Workloads</label>
+          <select id="presetSelect" class="select-preset" title="Load Preset Workload">
+            <option value="" disabled selected>⚡ Presets...</option>
+            <option value="silberschatz">Silberschatz OS Standard (Head: 53)</option>
+            <option value="stallings">Stallings Benchmark (Head: 100)</option>
+            <option value="clustered">Clustered Cylinder Requests</option>
+            <option value="extremes">Boundary / Extreme Cylinders</option>
+          </select>
+        </div>
+
+        <button id="randomBtn" class="btn btn-secondary btn-sm" title="Generate Random Workload">
+          🎲 Randomize
+        </button>
+
+        <!-- Export Dropdown -->
+        <div class="dropdown-wrapper">
+          <button id="exportMenuBtn" class="btn btn-secondary btn-sm" title="Export Solution & Data">
+            💾 Export ▾
+          </button>
+          <div id="exportMenu" class="dropdown-menu">
+            <button id="exportSolutionBtn" class="dropdown-item">📄 Homework Solution (.md)</button>
+            <button id="exportCsvBtn" class="dropdown-item">📊 Telemetry Data (.csv)</button>
+            <button id="exportPngBtn" class="dropdown-item">🖼️ Canvas Snapshot (.png)</button>
+          </div>
+        </div>
+
+        <!-- Voice Narration Toggle -->
+        <button id="voiceToggleBtn" class="btn btn-icon btn-secondary btn-sm" title="Toggle AI Voice Narration" aria-label="Toggle Voice">
+          <span id="voiceIcon">🎙️</span>
+        </button>
+
+        <!-- Audio Toggle -->
+        <button id="audioToggleBtn" class="btn btn-icon btn-secondary btn-sm" title="Toggle Sound Effects" aria-label="Toggle Sound">
+          <span id="audioIcon">🔊</span>
+        </button>
+
+        <!-- Theme Switcher -->
+        <button id="themeToggleBtn" class="btn btn-icon btn-secondary btn-sm" title="Switch Light / Dark Theme [T]" aria-label="Toggle Theme">
+          <span id="themeIcon">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main 3-Column Workspace -->
+    <main class="main-container">
+      
+      <!-- Left Panel: Configuration, Hardware Physics & Metrics -->
+      <aside class="panel config-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <span class="panel-icon">⚙️</span>
+            <h3>Configuration</h3>
+          </div>
+          <!-- Live Stream Toggle -->
+          <button id="liveStreamToggleBtn" class="badge-toggle" title="Auto-stream incoming requests to test starvation">
+            <span class="stream-dot"></span> Live I/O Stream
+          </button>
+        </div>
+
+        <form id="configForm" onsubmit="return false;">
+          <div class="form-group">
+            <div class="label-with-action">
+              <label for="requests">Disk Requests / Sectors:</label>
+              <span class="badge" id="requestCountBadge">8 items</span>
+            </div>
+            <input type="text" id="requests" class="form-input mono" placeholder="e.g. 98, 183, 37, 122, 14, 124, 65, 67" value="98, 183, 37, 122, 14, 124, 65, 67" required />
+            <span class="field-hint">Tip: Click directly on Canvas to add requests live!</span>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="head">Initial Head:</label>
+              <input type="number" id="head" class="form-input mono" value="53" min="0" required />
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="maxCylinder">Max Cylinder:</label>
+              <input type="number" id="maxCylinder" class="form-input mono" value="199" min="1" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="algorithm">Scheduling Algorithm:</label>
+            <div class="custom-select-wrap">
+              <select id="algorithm" class="form-input">
+                <optgroup label="Classical OS Algorithms">
+                  <option value="FCFS">FCFS (First-Come, First-Served)</option>
+                  <option value="SSTF" selected>SSTF (Shortest Seek Time First)</option>
+                  <option value="SCAN">SCAN (Elevator Algorithm)</option>
+                  <option value="CSCAN">C-SCAN (Circular SCAN)</option>
+                  <option value="LOOK">LOOK (Optimized Elevator)</option>
+                  <option value="CLOOK">C-LOOK (Circular LOOK)</option>
+                  <option value="FSCAN">F-SCAN (Freeze-Queue SCAN)</option>
+                  <option value="NSTEPSCAN">N-Step SCAN (Batched SCAN)</option>
+                  <option value="USER_ORDER">User Input Order (Raw Sequence)</option>
+                </optgroup>
+                <optgroup label="Modern Linux Kernel Schedulers">
+                  <option value="DEADLINE">Linux Deadline Scheduler (Read/Write FIFO)</option>
+                  <option value="CFQ">Linux CFQ (Completely Fair Queuing)</option>
+                  <option value="NOOP">Linux NOOP / None (NVMe SSD Optimal)</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          <!-- N-Step batch size input (shown only when NSTEPSCAN is active) -->
+          <div class="form-group" id="nStepGroup" style="display: none;">
+            <label for="nStepSize">Batch Size (N):</label>
+            <input type="number" id="nStepSize" class="form-input mono" value="4" min="2" max="20" />
+          </div>
+
+          <!-- Direction selector -->
+          <div class="form-group" id="directionGroup">
+            <label for="direction">Initial Head Direction:</label>
+            <div class="direction-toggle-group">
+              <label class="direction-btn">
+                <input type="radio" name="direction" value="high" checked />
+                <span>↗ Higher (Right)</span>
+              </label>
+              <label class="direction-btn">
+                <input type="radio" name="direction" value="low" />
+                <span>↙ Lower (Left)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Hardware Physics & Spindle Specs -->
+          <div class="hardware-specs-toggle-wrap">
+            <button id="togglePhysicsBtn" type="button" class="btn-text-toggle">
+              ⚙️ Hardware Drive Physics (RPM & Latency) ▾
+            </button>
+          </div>
+
+          <div id="physicsDrawer" class="physics-drawer" style="display: none;">
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="rpmSelect">Drive RPM:</label>
+                <select id="rpmSelect" class="form-input">
+                  <option value="5400">5,400 RPM (Laptop)</option>
+                  <option value="7200" selected>7,200 RPM (Desktop)</option>
+                  <option value="10000">10,000 RPM (VelociRaptor)</option>
+                  <option value="15000">15,000 RPM (Enterprise)</option>
+                </select>
+              </div>
+
+              <div class="form-group flex-1">
+                <label for="trackSeekTime">Track Seek Rate:</label>
+                <input type="number" id="trackSeekTime" class="form-input mono" value="0.15" step="0.01" min="0.01" title="ms per cylinder seek" />
+              </div>
+            </div>
+
+            <!-- CHS / LBA Calculator -->
+            <div class="chs-calculator-box">
+              <span class="chs-title">📐 CHS ↔ LBA Addressing Calculator</span>
+              <div class="chs-inputs-row">
+                <input type="number" id="chsCyl" class="form-input mono chs-mini" placeholder="Cyl" value="53" title="Cylinder" />
+                <input type="number" id="chsHead" class="form-input mono chs-mini" placeholder="Head" value="2" title="Head (0-3)" />
+                <input type="number" id="chsSec" class="form-input mono chs-mini" placeholder="Sec" value="15" title="Sector (1-63)" />
+                <span id="chsLbaResult" class="chs-res-badge">LBA: 13,370</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-buttons-group">
+            <button id="startBtn" type="button" class="btn btn-primary btn-glow">
+              <span>▶ Run Simulation</span>
+            </button>
+            <button id="compareBtn" type="button" class="btn btn-accent" title="Run all algorithms side-by-side">
+              <span>📊 Compare All (10)</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Live Performance & Hardware Physics Telemetry Card -->
+        <div class="metrics-card">
+          <div class="metrics-card-header">
+            <h4 id="telemetryCardTitle">Performance & Latency Telemetry</h4>
+            <span class="status-indicator live" id="liveStatusDot"></span>
+          </div>
+
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <span class="metric-label" id="seekMetricLabel">Total Head Movement</span>
+              <div class="metric-value-wrap">
+                <span id="totalSeek" class="metric-value">0</span>
+                <span class="metric-unit" id="seekMetricUnit">cyl</span>
+              </div>
+            </div>
+
+            <div class="metric-item">
+              <span class="metric-label">Estimated Seek Time</span>
+              <div class="metric-value-wrap">
+                <span id="totalSeekTimeMs" class="metric-value">0.00</span>
+                <span class="metric-unit">ms</span>
+              </div>
+            </div>
+
+            <div class="metric-item">
+              <span class="metric-label">Avg Rotational Delay</span>
+              <div class="metric-value-wrap">
+                <span id="rotDelayMs" class="metric-value">4.17</span>
+                <span class="metric-unit">ms</span>
+              </div>
+            </div>
+
+            <div class="metric-item">
+              <span class="metric-label">Total Est. Access Time</span>
+              <div class="metric-value-wrap">
+                <span id="totalAccessTimeMs" class="metric-value">0.00</span>
+                <span class="metric-unit">ms</span>
+              </div>
+            </div>
+
+            <div class="metric-item">
+              <span class="metric-label">Head Reversals</span>
+              <div class="metric-value-wrap">
+                <span id="reversalsCount" class="metric-value">0</span>
+                <span class="metric-unit">times</span>
+              </div>
+            </div>
+
+            <div class="metric-item">
+              <span class="metric-label">Progress</span>
+              <div class="metric-value-wrap">
+                <span id="currentStepDisplay" class="metric-value">0</span>
+                <span class="metric-unit">/ <span id="totalSteps">0</span></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center Panel: Visualization Studio, Sandbox & Quiz Arena -->
+      <section class="panel visualizer-panel">
+        <!-- Tab Navigation Bar -->
+        <div class="view-tabs-header">
+          <div class="tabs-group">
+            <button id="tabTrack" class="tab-btn active" data-view="track">🎯 1D Track</button>
+            <button id="tabGraph" class="tab-btn" data-view="graph">📈 2D Graph</button>
+            <button id="tabPlatter" class="tab-btn" data-view="platter">💽 Platter 2D</button>
+            <button id="tab3DStack" class="tab-btn" data-view="stack3d">💽 3D Cylinder</button>
+            <button id="tabSsd" class="tab-btn" data-view="ssd">⚡ SSD Flash</button>
+            <button id="tabLinux" class="tab-btn" data-view="linux">🐧 Linux Kernel</button>
+            <button id="tabSandbox" class="tab-btn" data-view="sandbox">💻 Code Sandbox</button>
+            <button id="tabComparison" class="tab-btn" data-view="comparison">📊 Comparison</button>
+            <button id="tabQuiz" class="tab-btn" data-view="quiz">🎓 Quiz Arena</button>
+          </div>
+
+          <div class="canvas-badge-info" id="viewModeBadge">
+            Interactive 1D Physical Track (Click to Add I/O)
+          </div>
+        </div>
+
+        <!-- Canvas & Multi-View Container -->
+        <div class="canvas-wrapper" id="canvasWrapper">
+          <canvas id="diskCanvas" width="900" height="460"></canvas>
+          <div id="canvasTooltip" class="canvas-tooltip"></div>
+          
+          <!-- Interactive Canvas Click Banner -->
+          <div id="clickToInjectBanner" class="click-inject-banner">
+            🖱️ Click anywhere on the canvas to inject a real-time request!
+          </div>
+
+          <!-- Code Sandbox Overlay Panel -->
+          <div id="sandboxOverlay" class="sandbox-overlay" style="display: none;">
+            <div class="sandbox-editor-wrapper">
+              <div class="sandbox-toolbar">
+                <span class="sandbox-title">💻 Custom Scheduling Algorithm JavaScript Sandbox</span>
+                <div class="sandbox-actions">
+                  <button id="sandboxResetBtn" class="btn btn-secondary btn-sm">↺ Reset Template</button>
+                  <button id="sandboxRunBtn" class="btn btn-primary btn-sm">▶ Run My Algorithm</button>
+                </div>
+              </div>
+              <textarea id="sandboxCodeEditor" class="sandbox-textarea mono" spellcheck="false"></textarea>
+              <div id="sandboxConsoleLog" class="sandbox-console mono">Console output ready...</div>
+            </div>
+          </div>
+
+          <!-- Quiz Interactive Overlay Container -->
+          <div id="quizOverlay" class="quiz-overlay" style="display: none;">
+            <div class="quiz-card">
+              <div class="quiz-header">
+                <div class="quiz-badge-wrap">
+                  <span class="quiz-badge">🎓 OS Exam Lab</span>
+                  <span id="quizStreakBadge" class="streak-badge">🔥 Streak: 0</span>
+                </div>
+                <div class="quiz-score-wrap">
+                  Score: <strong id="quizScore">0</strong> / <span id="quizTotal">0</span>
+                </div>
+              </div>
+
+              <div class="quiz-question-box">
+                <h4 id="quizQuestionText">Loading Question...</h4>
+                <div id="quizScenarioDetails" class="quiz-scenario-mono"></div>
+              </div>
+
+              <div class="quiz-options-grid" id="quizOptionsGrid">
+                <!-- Option buttons generated dynamically -->
+              </div>
+
+              <div id="quizFeedbackBox" class="quiz-feedback-box" style="display: none;">
+                <p id="quizFeedbackText"></p>
+                <button id="quizNextBtn" class="btn btn-primary btn-sm">Next Question ➔</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Timeline Scrubber Bar -->
+        <div class="timeline-scrubber-container">
+          <span class="timeline-label">Timeline:</span>
+          <input type="range" id="timelineScrubber" min="0" max="0" value="0" step="1" class="timeline-slider" disabled />
+          <span id="timelineStepBadge" class="timeline-step-badge">Step 0 / 0</span>
+        </div>
+
+        <!-- Media Playback Toolbar -->
+        <div class="playback-toolbar">
+          <div class="playback-controls-group">
+            <button id="jumpStartBtn" class="btn btn-control btn-icon-only" title="Jump to Beginning [Home]" disabled>⏮</button>
+            <button id="prevBtn" class="btn btn-control btn-icon-only" title="Previous Step [Left Arrow]" disabled>◀</button>
+            <button id="playBtn" class="btn btn-control btn-play-pause" title="Play Animation [Space]" disabled>
+              <span id="playBtnIcon">▶</span>
+              <span id="playBtnText">Play</span>
+            </button>
+            <button id="pauseBtn" class="btn btn-control btn-play-pause" title="Pause Animation [Space]" style="display: none;">
+              <span>⏸</span>
+              <span>Pause</span>
+            </button>
+            <button id="nextBtn" class="btn btn-control btn-icon-only" title="Next Step [Right Arrow]" disabled>▶</button>
+            <button id="jumpEndBtn" class="btn btn-control btn-icon-only" title="Jump to End [End]" disabled>⏭</button>
+            <button id="resetBtn" class="btn btn-control" title="Reset View [R]" disabled>🔄 Reset</button>
+          </div>
+
+          <div class="speed-slider-group">
+            <span class="speed-icon">⏱️</span>
+            <label for="speedSlider">Speed:</label>
+            <input type="range" id="speedSlider" min="1" max="5" value="3" step="1" />
+            <span id="speedValue" class="speed-badge">3x</span>
+          </div>
+        </div>
+
+        <!-- Keyboard Shortcuts Help Ribbon -->
+        <div class="keyboard-hints">
+          <span>Shortcuts:</span>
+          <kbd>Space</kbd> Play/Pause
+          <kbd>←</kbd> Prev
+          <kbd>→</kbd> Next
+          <kbd>Home</kbd> / <kbd>End</kbd> First/Last
+          <kbd>R</kbd> Reset
+          <kbd>T</kbd> Theme
+          <kbd>V</kbd> Voice
+        </div>
+      </section>
+
+      <!-- Right Panel: Algorithm Theory & Live Breakdown -->
+      <aside class="panel explanation-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <span class="panel-icon">💡</span>
+            <h3>Analysis & Logs</h3>
+          </div>
+        </div>
+
+        <!-- Algorithm Theoretical Profile Card -->
+        <div class="card-section">
+          <div class="section-title-wrap">
+            <h4 id="algoTitle">Algorithm Profile</h4>
+            <span id="algoTag" class="tag tag-indigo">SSTF</span>
+          </div>
+          <div id="algorithmDescription" class="description-box">
+            <p>Select an algorithm and press <strong>Run Simulation</strong> to view real-time behavioral insights.</p>
+          </div>
+          
+          <div class="algo-specs-grid" id="algoSpecsGrid" style="display: none;">
+            <div class="spec-chip">
+              <span class="spec-lbl">Complexity:</span>
+              <strong id="specComplexity">O(N²)</strong>
+            </div>
+            <div class="spec-chip">
+              <span class="spec-lbl">Starvation:</span>
+              <strong id="specStarvation">Possible</strong>
+            </div>
+            <div class="spec-chip">
+              <span class="spec-lbl">Directional:</span>
+              <strong id="specDirectional">No</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Step Math & Latency Telemetry -->
+        <div class="card-section">
+          <h4>Live Step Mechanics</h4>
+          <div id="stepDetails" class="step-details-box">
+            <div class="empty-state-text">Simulation awaiting start...</div>
+          </div>
+        </div>
+
+        <!-- Dynamic Service Order Chips -->
+        <div class="card-section flex-expand">
+          <div class="label-with-action">
+            <h4>Service Order Path</h4>
+            <span class="sub-hint">Click step to jump</span>
+          </div>
+          <div id="serviceOrderChips" class="service-chips-container">
+            <div class="empty-state-text">Run simulation to generate path.</div>
+          </div>
+        </div>
+      </aside>
+
+    </main>
+  </div>
+
+  <script src="project.js"></script>
+</body>
+
+</html>
